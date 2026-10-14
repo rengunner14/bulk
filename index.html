@@ -290,7 +290,10 @@ window.dash = (() => {
       const dates = [...by.keys()].sort();
       if (!dates.length) return [];
       const out = [];
-      for (let d = new Date(dates[0] + 'T00:00:00Z'); d <= new Date(dates[dates.length - 1] + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + 1)) {
+      // run through today (JST) so a new day shows up as zeros before anything is logged
+      const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Tokyo' }).format(new Date());
+      const last = dates[dates.length - 1] > today ? dates[dates.length - 1] : today;
+      for (let d = new Date(dates[0] + 'T00:00:00Z'); d <= new Date(last + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + 1)) {
         const k = d.toISOString().slice(0, 10);
         const t = by.get(k) || { date: k, kcal: 0, protein: 0, carbs: 0, fat: 0 };
         out.push({ date: k, kcal: Math.round(t.kcal), protein: Math.round(t.protein * 10) / 10, carbs: Math.round(t.carbs * 10) / 10, fat: Math.round(t.fat * 10) / 10 });
@@ -344,6 +347,7 @@ window.dash = (() => {
   const span = (cls, text) => { const s = document.createElement('span'); if (cls) s.className = cls; if (text != null) s.textContent = text; return s; };
 
   let day = null;
+  let shownToday = null;  // jump back to today whenever the JST date changes
   let metric = 'kcal';
   const ringState = {};
 
@@ -388,6 +392,8 @@ window.dash = (() => {
   // ---------- Today card ----------
   function drawToday(prog, daily) {
     const dates = daily.map((r) => r.date);
+    const today = tokyoToday();
+    if (today !== shownToday) { shownToday = today; day = dates.includes(today) ? today : dates[dates.length - 1]; }
     if (!day || !dates.includes(day)) day = dates[dates.length - 1];
     const i = dates.indexOf(day);
     $('day-prev').disabled = i <= 0;
@@ -442,6 +448,7 @@ window.dash = (() => {
     list.replaceChildren();
     const rows = food.filter((r) => r.date === day);
     $('meals-title').textContent = day === tokyoToday() ? 'Meals Today' : `Meals, ${shortFmt(parse(day))}`;
+    if (!rows.length) { const p = document.createElement('p'); p.className = 'bt-note'; p.textContent = 'Nothing logged yet.'; list.append(p); return; }
     const order = ['Breakfast', 'Lunch', 'Dinner', 'Snack', 'Supplement'];
     const rank = (k) => (order.indexOf(k) < 0 ? 99 : order.indexOf(k));
     const groups = d3.groups(rows, (r) => r.meal).sort((a, b) => rank(a[0]) - rank(b[0]));
